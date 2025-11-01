@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-    
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -134,47 +134,76 @@ def set_custom_theme(theme="Clair"):
     )
 
 
+def test_data_url():
+    """Fonction de test pour vérifier l'accès aux données"""
+    try:
+        import requests
+
+        url = st.secrets["DATA_REMOTE_URL"]
+        response = requests.head(url, timeout=10)
+        st.write(f"Status code: {response.status_code}")
+        st.write(f"Headers: {dict(response.headers)}")
+        return response.status_code == 200
+    except Exception as e:
+        st.error(f"Erreur lors du test de l'URL : {str(e)}")
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Page Accueil
 # ---------------------------------------------------------------------------
 def show_home_page():
-    recipes_df = get_ds()["clean_recipes"]
-    raw_interactions = get_ds()["raw_interactions"]
+    st.write("🔧 Test de connectivité...")
+    if test_data_url():
+        st.write("✅ URL accessible")
+    else:
+        st.write("❌ URL non accessible")
+    try:
+        recipes_df = get_ds()["clean_recipes"]
+        raw_interactions = get_ds()["raw_interactions"]
 
-    st.markdown("## INTRODUCTION")
-    st.markdown(
-        """Notre équipe composé de Guy, Mohamed, Leonnel, Omar et Osman avons décidé de travailler sur le projet MangeTaMain sur la problématique 
-            du **taux d'insatisfaction des recettes** en nous basant sur 2 tables : les recettes et les interactions utilisateurs (notes, avis).
-            Voici un aperçu de la table recette :
-                """
-    )
+        st.markdown("## INTRODUCTION")
+        st.markdown(
+            """Notre équipe composé de Guy, Mohamed, Leonnel, Omar et Osman avons décidé de travailler sur le projet MangeTaMain sur la problématique 
+                du **taux d'insatisfaction des recettes** en nous basant sur 2 tables : les recettes et les interactions utilisateurs (notes, avis).
+                Voici un aperçu de la table recette :
+                    """
+        )
 
-    st.dataframe(recipes_df.head(5), width="stretch")
+        st.dataframe(recipes_df.head(5), width="stretch")
 
-    st.markdown("""et voici un aperçu de la table interactions :""")
+        st.markdown("""et voici un aperçu de la table interactions :""")
 
-    st.dataframe(raw_interactions.head(5), width="stretch")
+        st.dataframe(raw_interactions.head(5), width="stretch")
 
-    st.markdown(
-        """Le travaille se décline en plusieurs étapes :  
-                - **data_cleaning** : comprendre la structure, les types de données, les valeurs manquantes, les valeurs aberrantes, etc.  
-                - **Analyse univariée** : analyse statistique descriptive et visualisations pour comprendre les tendances, les distributions, les corrélations, etc.  
-                - **Analyse bivariée** : exploration des relations entre les variables, identification des facteurs influençant le taux d'insatisfaction.  
-                - **Ouverture** : Conclusion et suggestions pour la poursuite de l'analyse  
-                """
-    )
+        st.markdown(
+            """Le travaille se décline en plusieurs étapes :  
+                    - **data_cleaning** : comprendre la structure, les types de données, les valeurs manquantes, les valeurs aberrantes, etc.  
+                    - **Analyse univariée** : analyse statistique descriptive et visualisations pour comprendre les tendances, les distributions, les corrélations, etc.  
+                    - **Analyse bivariée** : exploration des relations entre les variables, identification des facteurs influençant le taux d'insatisfaction.  
+                    - **Ouverture** : Conclusion et suggestions pour la poursuite de l'analyse  
+                    """
+        )
 
-    # Boutons navigation rapides
-    st.markdown("### Navigation rapide")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("📊 Aller à la page data cleaning"):
-            _set_page_by_key("data")
-            _safe_rerun()
-    with c2:
-        if st.button("📈 Aller aux Visualisations"):
-            _set_page_by_key("viz")
-            _safe_rerun()
+        # Boutons navigation rapides
+        st.markdown("### Navigation rapide")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("📊 Aller à la page data cleaning"):
+                _set_page_by_key("data")
+                _safe_rerun()
+        with c2:
+            if st.button("📈 Aller aux Visualisations"):
+                _set_page_by_key("viz")
+                _safe_rerun()
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des données : {str(e)}")
+        # Ajoutez des informations de debug
+        st.write(f"Type d'erreur : {type(e).__name__}")
+        if hasattr(st, "secrets"):
+            st.write("Secrets disponibles ✅")
+        else:
+            st.write("Secrets non disponibles ❌")
 
 
 PAGES_ORDER = [
@@ -210,8 +239,15 @@ def main():
     if logger:
         logger.info("Initializing Streamlit application main interface")
     if "data_ready" not in st.session_state:
-        ensure_data()
-        st.session_state.data_ready = True
+        try:
+            st.write("🔄 Chargement des données en cours...")
+            ensure_data()
+            st.session_state.data_ready = True
+            st.write("✅ Données chargées avec succès")
+        except Exception as e:
+            st.error(f"❌ Erreur lors du chargement des données : {str(e)}")
+            st.write(f"Type d'erreur : {type(e).__name__}")
+            return
     st.set_page_config(page_title="MangeTaMain", page_icon="🍽️", layout="wide")
     _init_page_state()
 
