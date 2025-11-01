@@ -134,33 +134,28 @@ def set_custom_theme(theme="Clair"):
     )
 
 
-def test_data_url():
-    """Fonction de test pour vérifier l'accès aux données"""
-    try:
-        import requests
-
-        url = st.secrets["DATA_REMOTE_URL"]
-        response = requests.head(url, timeout=10)
-        st.write(f"Status code: {response.status_code}")
-        st.write(f"Headers: {dict(response.headers)}")
-        return response.status_code == 200
-    except Exception as e:
-        st.error(f"Erreur lors du test de l'URL : {str(e)}")
-        return False
-
-
 # ---------------------------------------------------------------------------
 # Page Accueil
 # ---------------------------------------------------------------------------
 def show_home_page():
-    st.write("🔧 Test de connectivité...")
-    if test_data_url():
-        st.write("✅ URL accessible")
-    else:
-        st.write("❌ URL non accessible")
     try:
-        recipes_df = get_ds()["clean_recipes"]
-        raw_interactions = get_ds()["raw_interactions"]
+        # Utilisez les datasets depuis le session_state si disponibles
+        if "datasets" in st.session_state:
+            ds = st.session_state.datasets
+        else:
+            ds = get_ds()
+
+        recipes_df = ds["clean_recipes"]
+        raw_interactions = ds["raw_interactions"]
+
+        # Vérifiez que les données sont valides
+        if recipes_df is None or recipes_df.empty:
+            st.error("Les données des recettes ne sont pas disponibles")
+            return
+
+        if raw_interactions is None or raw_interactions.empty:
+            st.error("Les données d'interactions ne sont pas disponibles")
+            return
 
         st.markdown("## INTRODUCTION")
         st.markdown(
@@ -170,11 +165,11 @@ def show_home_page():
                     """
         )
 
-        st.dataframe(recipes_df.head(5), width="stretch")
+        st.dataframe(recipes_df.head(5), use_container_width=True)
 
         st.markdown("""et voici un aperçu de la table interactions :""")
 
-        st.dataframe(raw_interactions.head(5), width="stretch")
+        st.dataframe(raw_interactions.head(5), use_container_width=True)
 
         st.markdown(
             """Le travaille se décline en plusieurs étapes :  
@@ -196,10 +191,14 @@ def show_home_page():
             if st.button("📈 Aller aux Visualisations"):
                 _set_page_by_key("viz")
                 _safe_rerun()
+
     except Exception as e:
         st.error(f"Erreur lors du chargement des données : {str(e)}")
-        # Ajoutez des informations de debug
         st.write(f"Type d'erreur : {type(e).__name__}")
+        if logger:
+            logger.error(f"Error in show_home_page: {str(e)}")
+
+        # Informations de debug
         if hasattr(st, "secrets"):
             st.write("Secrets disponibles ✅")
         else:
@@ -236,6 +235,8 @@ def _set_page_by_key(page_key: str):
 # Main
 # ---------------------------------------------------------------------------
 def main():
+    st.set_page_config(page_title="MangeTaMain", page_icon="🍽️", layout="wide")
+    _init_page_state()
     if logger:
         logger.info("Initializing Streamlit application main interface")
     if "data_ready" not in st.session_state:
@@ -248,8 +249,6 @@ def main():
             st.error(f"❌ Erreur lors du chargement des données : {str(e)}")
             st.write(f"Type d'erreur : {type(e).__name__}")
             return
-    st.set_page_config(page_title="MangeTaMain", page_icon="🍽️", layout="wide")
-    _init_page_state()
 
     if "theme" not in st.session_state:
         st.session_state.theme = "Clair"
