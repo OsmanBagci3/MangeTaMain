@@ -197,6 +197,8 @@ def get_ds(downsample=True, max_rows=10000):
             else:
                 logger.warning(f"get_ds -> {k}: None")
 
+    return ds
+
 
 # ---------------------------------------------------------------------------
 # Wrapper rendu (affiche figure + docstring + texte explicatif)
