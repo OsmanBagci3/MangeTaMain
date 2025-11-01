@@ -24,6 +24,16 @@ def _running_on_cloud():
 
 
 def ensure_data():
+    if _running_on_cloud():
+        sample_path = DATA_DIR / "data_sample.parquet"
+        if sample_path.exists():
+            _log("Mode=cloud -> skip large download, using local sample dataset")
+            return str(sample_path)
+        else:
+            _log("Mode=cloud -> sample file missing, please commit data_sample.parquet")
+            st.error("⚠️ Dataset d'exemple manquant (data/data_sample.parquet).")
+            return
+
     # Priorité: secrets > env
     mode = (
         st.secrets.get("APP_MODE") if hasattr(st, "secrets") else None
@@ -31,9 +41,6 @@ def ensure_data():
     remote_url = (
         st.secrets.get("DATA_REMOTE_URL") if hasattr(st, "secrets") else None
     ) or os.getenv("DATA_REMOTE_URL")
-
-    if _running_on_cloud() and mode == "dev":
-        mode = "prod"  # force prod sur Cloud
 
     DATA_DIR.mkdir(exist_ok=True)
     RAW_DIR.mkdir(exist_ok=True)
