@@ -24,23 +24,16 @@ def _running_on_cloud():
 
 
 def ensure_data():
-    if _running_on_cloud():
-        sample_path = DATA_DIR / "data_sample.parquet"
-        if sample_path.exists():
-            _log("Mode=cloud -> skip large download, using local sample dataset")
-            return str(sample_path)
-        else:
-            _log("Mode=cloud -> sample file missing, please commit data_sample.parquet")
-            st.error("⚠️ Dataset d'exemple manquant (data/data_sample.parquet).")
-            return
-
-    # Priorité: secrets > env
+    # Mode / URL
     mode = (
         st.secrets.get("APP_MODE") if hasattr(st, "secrets") else None
     ) or os.getenv("APP_MODE", "dev")
     remote_url = (
         st.secrets.get("DATA_REMOTE_URL") if hasattr(st, "secrets") else None
     ) or os.getenv("DATA_REMOTE_URL")
+    use_sample = (
+        st.secrets.get("USE_SAMPLE") if hasattr(st, "secrets") else None
+    ) or os.getenv("USE_SAMPLE", "false").lower() in ("1", "true", "yes")
 
     DATA_DIR.mkdir(exist_ok=True)
     RAW_DIR.mkdir(exist_ok=True)
@@ -49,17 +42,26 @@ def ensure_data():
     has_raw = any(RAW_DIR.iterdir())
     has_processed = any(PROCESSED_DIR.iterdir())
     _log(
-        f"Mode={mode} url={'SET' if remote_url else 'MISSING'} raw={has_raw} processed={has_processed}"
+        f"Mode={mode} url={'SET' if remote_url else 'MISSING'} raw={has_raw} processed={has_processed} cloud={_running_on_cloud()} sample_flag={use_sample}"
     )
 
+    # Si déjà extrait
     if has_raw and has_processed:
         return
 
+    # Sans URL -> erreur
     if not remote_url:
         st.error("DATA_REMOTE_URL non défini (ajoute-le dans .streamlit/secrets.toml).")
         return
 
-    st.info("Téléchargement des données… (peut prendre ~30-60s)")
+    # Sample optionnel (désactivé par défaut)
+    sample_path = DATA_DIR / "data_sample.parquet"
+    if use_sample and sample_path.exists():
+        _log("USE_SAMPLE activé -> utilisation du sample parquet")
+        return
+
+    # Téléchargement forcé
+    st.info("Téléchargement des données…")
     _log(f"Téléchargement: {remote_url}")
     try:
         if "drive.google.com" in remote_url:
@@ -71,7 +73,7 @@ def ensure_data():
             tmp_zip = DATA_DIR / "data.zip"
             gdown.download(remote_url, str(tmp_zip), quiet=False)
             if not tmp_zip.exists():
-                raise RuntimeError("Fichier ZIP introuvable après téléchargement.")
+                raise RuntimeError("ZIP introuvable après téléchargement.")
             _extract_zip(tmp_zip)
             tmp_zip.unlink(missing_ok=True)
         else:
@@ -82,7 +84,7 @@ def ensure_data():
             _extract_zip(resp.content)
     except Exception as e:
         _log(f"Erreur téléchargement: {e}")
-        st.error(f"Echec du téléchargement: {e}")
+        st.error(f"Echec téléchargement: {e}")
         return
 
     has_raw = any(RAW_DIR.iterdir())
