@@ -134,7 +134,7 @@ Nous décidons aussi de le garder dans notre jeu de donnée d'autant plus que ce
         )
         st.markdown(
             """Sur ce graphique nous avons catégorisé les temps de préparation : 
-- Très rapide : $ \leq 15 $ min
+- Très rapide : $ ≤ 15 $ min
 - Rapide      : 16 ~ 30 min
 - Moyen       : 31 ~ 60 min
 - Long        : 1 ~ 2 heures

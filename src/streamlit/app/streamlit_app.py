@@ -139,22 +139,24 @@ def set_custom_theme(theme="Clair"):
 # ---------------------------------------------------------------------------
 def show_home_page():
     try:
-        # Utilisez les datasets depuis le session_state si disponibles
-        if "datasets" in st.session_state:
-            ds = st.session_state.datasets
-        else:
-            ds = get_ds()
+        # Utilisez UNIQUEMENT les datasets depuis le session_state
+        if "datasets" not in st.session_state:
+            st.error("Les datasets ne sont pas encore chargés. Veuillez patienter...")
+            return
 
-        recipes_df = ds["clean_recipes"]
-        raw_interactions = ds["raw_interactions"]
+        ds = st.session_state.datasets
+        recipes_df = ds.get("clean_recipes")
+        raw_interactions = ds.get("raw_interactions")
 
         # Vérifiez que les données sont valides
         if recipes_df is None or recipes_df.empty:
             st.error("Les données des recettes ne sont pas disponibles")
+            st.write(f"Debug: recipes_df = {recipes_df}")
             return
 
         if raw_interactions is None or raw_interactions.empty:
             st.error("Les données d'interactions ne sont pas disponibles")
+            st.write(f"Debug: raw_interactions = {raw_interactions}")
             return
 
         st.markdown("## INTRODUCTION")
@@ -193,16 +195,17 @@ def show_home_page():
                 _safe_rerun()
 
     except Exception as e:
-        st.error(f"Erreur lors du chargement des données : {str(e)}")
+        st.error(f"Erreur lors de l'affichage de la page d'accueil : {str(e)}")
         st.write(f"Type d'erreur : {type(e).__name__}")
         if logger:
             logger.error(f"Error in show_home_page: {str(e)}")
 
-        # Informations de debug
-        if hasattr(st, "secrets"):
-            st.write("Secrets disponibles ✅")
-        else:
-            st.write("Secrets non disponibles ❌")
+        # Informations de debug avancées
+        st.write("**État de l'application :**")
+        st.write(f"- Datasets en session_state: {'datasets' in st.session_state}")
+        if "datasets" in st.session_state:
+            st.write(f"- Clés disponibles: {list(st.session_state.datasets.keys())}")
+        st.write(f"- Secrets disponibles: {hasattr(st, 'secrets')}")
 
 
 PAGES_ORDER = [
@@ -239,15 +242,41 @@ def main():
     _init_page_state()
     if logger:
         logger.info("Initializing Streamlit application main interface")
+        # Étape 1: S'assurer que les données sont téléchargées
     if "data_ready" not in st.session_state:
         try:
-            st.write("🔄 Chargement des données en cours...")
-            ensure_data()
+            with st.spinner("🔄 Téléchargement des données en cours..."):
+                ensure_data()
             st.session_state.data_ready = True
-            st.write("✅ Données chargées avec succès")
+            st.success("✅ Données téléchargées avec succès")
         except Exception as e:
-            st.error(f"❌ Erreur lors du chargement des données : {str(e)}")
+            st.error(f"❌ Erreur lors du téléchargement des données : {str(e)}")
             st.write(f"Type d'erreur : {type(e).__name__}")
+            if logger:
+                logger.error(f"Error during data download: {str(e)}")
+            return
+
+    # Étape 2: Charger les datasets en mémoire
+    if "datasets" not in st.session_state:
+        try:
+            with st.spinner("🔄 Chargement des datasets en cours..."):
+                ds = get_ds()
+            st.session_state.datasets = ds
+            st.success("✅ Datasets chargés avec succès")
+            if logger:
+                logger.info("Successfully loaded datasets for main interface")
+                for key, df in ds.items():
+                    if df is not None:
+                        logger.debug(f"Dataset '{key}': {df.shape}")
+                    else:
+                        logger.warning(f"Dataset '{key}' is None")
+        except Exception as e:
+            st.error(f"❌ Erreur lors du chargement des datasets : {str(e)}")
+            st.write(f"Type d'erreur : {type(e).__name__}")
+            if logger:
+                logger.error(f"Error loading datasets in main: {str(e)}")
+            st.write("**Détails de l'erreur :**")
+            st.code(str(e))
             return
 
     if "theme" not in st.session_state:
@@ -256,21 +285,6 @@ def main():
 
     if logger:
         logger.debug(f"Theme set to: {st.session_state.theme}")
-
-    try:
-        ds = get_ds()
-        if logger:
-            logger.info("Successfully loaded datasets for main interface")
-            for key, df in ds.items():
-                if df is not None:
-                    logger.debug(f"Dataset '{key}': {df.shape}")
-                else:
-                    logger.warning(f"Dataset '{key}' is None")
-    except Exception as e:
-        if logger:
-            logger.error(f"Error loading datasets in main: {str(e)}")
-        st.error("Erreur lors du chargement des données")
-        return
 
     # Barre supérieure avec chevrons
     top_left, top_center, top_right = st.columns([0.7, 5, 0.7])
