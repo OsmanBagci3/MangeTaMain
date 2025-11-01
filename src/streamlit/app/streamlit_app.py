@@ -1,11 +1,15 @@
 """Application Streamlit principale (plots + textes explicatifs)."""
 
-import streamlit as st
-import pandas as pd
-import numpy as np
 import sys, inspect
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+    
+import streamlit as st
+import pandas as pd
+import numpy as np
 import yaml
 from src.ensure_data import ensure_data
 
