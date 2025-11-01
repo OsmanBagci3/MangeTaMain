@@ -256,27 +256,28 @@ def main():
                 logger.error(f"Error during data download: {str(e)}")
             return
 
-    # Étape 2: Charger les datasets en mémoire
+    # Étape 2: Charger les datasets
     if "datasets" not in st.session_state:
         try:
-            with st.spinner("🔄 Chargement des datasets en cours..."):
+            with st.spinner("🔄 Chargement des datasets..."):
                 ds = get_ds()
             st.session_state.datasets = ds
-            st.success("✅ Datasets chargés avec succès")
-            if logger:
-                logger.info("Successfully loaded datasets for main interface")
-                for key, df in ds.items():
-                    if df is not None:
-                        logger.debug(f"Dataset '{key}': {df.shape}")
-                    else:
-                        logger.warning(f"Dataset '{key}' is None")
+            st.success("✅ Datasets chargés")
+            # Debug shapes + mémoire
+            import psutil, os
+
+            proc = psutil.Process(os.getpid())
+            st.write("Mémoire processus (MB):", round(proc.memory_info().rss / 1e6, 1))
+            for k, v in ds.items():
+                try:
+                    st.write(
+                        f"{k}: {v.shape}  (~{round(v.memory_usage(deep=True).sum()/1e6,1)} MB)"
+                    )
+                except Exception:
+                    st.write(f"{k}: objet non DataFrame")
         except Exception as e:
-            st.error(f"❌ Erreur lors du chargement des datasets : {str(e)}")
-            st.write(f"Type d'erreur : {type(e).__name__}")
-            if logger:
-                logger.error(f"Error loading datasets in main: {str(e)}")
-            st.write("**Détails de l'erreur :**")
-            st.code(str(e))
+            st.error(f"Erreur get_ds(): {e}")
+            st.code(repr(e))
             return
 
     if "theme" not in st.session_state:

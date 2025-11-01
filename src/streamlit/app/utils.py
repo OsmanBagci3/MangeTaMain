@@ -8,7 +8,8 @@ import yaml
 # Initialize logging
 try:
     from src.logging_config import get_logger
-    logger = get_logger('streamlit.utils')
+
+    logger = get_logger("streamlit.utils")
 except Exception as e:
     print(f"Warning: Could not initialize logging in utils: {e}")
     logger = None
@@ -54,14 +55,14 @@ def load_all_datasets():
     """Charge une seule fois toutes les données utiles et les retourne dans un dict."""
     if logger:
         logger.info("Loading all datasets for Streamlit application")
-    
+
     try:
         merged_df = _read_csv("data/processed/merged_cleaned.csv")
         interactions = _read_csv("data/processed/interactions_cleaned.csv")
         clean_recipes = _read_csv("data/processed/recipes_cleaned.csv")
         raw_recipes = _read_csv("data/raw/RAW_recipes.csv")
         raw_interactions = _read_csv("data/raw/RAW_interactions.csv")
-        
+
         # Log dataset information
         datasets_info = {}
         for name, df in [
@@ -69,7 +70,7 @@ def load_all_datasets():
             ("interactions", interactions),
             ("clean_recipes", clean_recipes),
             ("raw_recipes", raw_recipes),
-            ("raw_interactions", raw_interactions)
+            ("raw_interactions", raw_interactions),
         ]:
             if df is not None:
                 datasets_info[name] = df.shape
@@ -78,10 +79,12 @@ def load_all_datasets():
             else:
                 if logger:
                     logger.warning(f"Dataset '{name}' could not be loaded")
-        
+
         if logger:
-            logger.info(f"Successfully loaded {len([d for d in datasets_info.values() if d is not None])} datasets")
-        
+            logger.info(
+                f"Successfully loaded {len([d for d in datasets_info.values() if d is not None])} datasets"
+            )
+
         return {
             "merged": merged_df,
             "interactions": interactions,
@@ -166,11 +169,33 @@ def get_comment(func_name: str) -> str:
     return EXTERNAL_COMMENTS.get(func_name) or MD_MAP.get(func_name)
 
 
-def get_ds():
-    """Accès centralisé aux datasets (dans session_state)."""
+def _downsample(df, max_rows=10000):
+    if df is not None and len(df) > max_rows:
+        return df.sample(max_rows, random_state=42)
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def get_ds(downsample=True, max_rows=10000):
+    """Retourne les 5 datasets (clean, interactions, merged, raw) avec option de downsample."""
+    # Charge tout une fois
     if "ds" not in st.session_state:
         st.session_state["ds"] = load_all_datasets()
-    return st.session_state["ds"]
+
+    ds = st.session_state["ds"].copy()
+
+    if downsample:
+        # Downsample seulement les gros (éviter sur merged si déjà réduit)
+        for key in ("clean_recipes", "interactions", "raw_recipes", "raw_interactions"):
+            ds[key] = _downsample(ds.get(key), max_rows=max_rows)
+
+    # Vérif rapide
+    if logger:
+        for k, v in ds.items():
+            if isinstance(v, pd.DataFrame):
+                logger.debug(f"get_ds -> {k}: {v.shape}")
+            else:
+                logger.warning(f"get_ds -> {k}: None")
 
 
 # ---------------------------------------------------------------------------
@@ -193,27 +218,31 @@ def render_viz(
         if logger:
             logger.warning(f"Visualization '{label}' skipped: dataset is None")
         return
-    
+
     if logger:
         logger.debug(f"Rendering visualization: {label} with function {func.__name__}")
-    
+
     block = st.expander(label, expanded=not expander) if expander else st.container()
     with block:
         if FAST_MODE and sample_if_fast and len(df) > sample_if_fast:
             if logger:
-                logger.debug(f"Sampling dataset for {label}: {len(df)} -> {sample_if_fast} rows")
+                logger.debug(
+                    f"Sampling dataset for {label}: {len(df)} -> {sample_if_fast} rows"
+                )
             df = df.sample(sample_if_fast, random_state=42)
         try:
             fig = func(df, return_fig=True, **kwargs)
             if fig is None:
                 st.info("Figure non retournée.")
                 if logger:
-                    logger.warning(f"Function {func.__name__} returned None for visualization {label}")
+                    logger.warning(
+                        f"Function {func.__name__} returned None for visualization {label}"
+                    )
                 return
             st.pyplot(fig, use_container_width=True)
             if logger:
                 logger.debug(f"Successfully rendered visualization: {label}")
-            
+
             if show_doc:
                 doc = inspect.getdoc(func)
                 comment = get_comment(func.__name__)
@@ -229,7 +258,9 @@ def render_viz(
             error_msg = f"Erreur: {e}"
             st.error(error_msg)
             if logger:
-                logger.error(f"Error rendering visualization '{label}' with function {func.__name__}: {str(e)}")
+                logger.error(
+                    f"Error rendering visualization '{label}' with function {func.__name__}: {str(e)}"
+                )
 
 
 def _safe_rerun():

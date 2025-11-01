@@ -134,12 +134,12 @@ Nous décidons aussi de le garder dans notre jeu de donnée d'autant plus que ce
         )
         st.markdown(
             """Sur ce graphique nous avons catégorisé les temps de préparation : 
-- Très rapide : $ ≤ 15 $ min
+- Très rapide : ≤ 15 min
 - Rapide      : 16 ~ 30 min
 - Moyen       : 31 ~ 60 min
 - Long        : 1 ~ 2 heures
 - Très long   : 2 ~ 4 heures
-- Extrême     : $ \geq 4 $ heures
+- Extrême     : ≥ 4 heures
 
 Nous observons que la plupart des recettes prennent au plus 2 heures de prépartations. 
 à noté que les recettes avec 0 min de temps de préparation sont aussi inclus dans la catégorie "très rapide", 
