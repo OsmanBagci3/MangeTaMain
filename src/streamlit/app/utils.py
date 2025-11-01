@@ -35,6 +35,30 @@ def _ensure_src_on_path():
 
 PROJECT_ROOT = _ensure_src_on_path()
 
+DTYPES_RECIPES = {
+    "id": "int32",
+    "minutes": "int32",
+    "n_steps": "int16",
+    "n_ingredients": "int16",
+}
+DTYPES_INTERACTIONS = {
+    "user_id": "int32",
+    "recipe_id": "int32",
+    "rating": "int8",
+}
+
+
+def _read_csv_opt(path: Path, usecols=None, dtypes=None, nrows=None):
+    if not path.exists():
+        return None
+    return pd.read_csv(
+        path,
+        usecols=usecols,
+        dtype=dtypes,
+        nrows=nrows,
+        low_memory=True,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Chargement des données (cache)
@@ -51,51 +75,34 @@ def _read_csv(rel):
 
 
 @st.cache_data(show_spinner=False)
-def load_all_datasets():
-    """Charge une seule fois toutes les données utiles et les retourne dans un dict."""
-    if logger:
-        logger.info("Loading all datasets for Streamlit application")
-
-    try:
-        merged_df = _read_csv("data/processed/merged_cleaned.csv")
-        interactions = _read_csv("data/processed/interactions_cleaned.csv")
-        clean_recipes = _read_csv("data/processed/recipes_cleaned.csv")
-        raw_recipes = _read_csv("data/raw/RAW_recipes.csv")
-        raw_interactions = _read_csv("data/raw/RAW_interactions.csv")
-
-        # Log dataset information
-        datasets_info = {}
-        for name, df in [
-            ("merged", merged_df),
-            ("interactions", interactions),
-            ("clean_recipes", clean_recipes),
-            ("raw_recipes", raw_recipes),
-            ("raw_interactions", raw_interactions),
-        ]:
-            if df is not None:
-                datasets_info[name] = df.shape
-                if logger:
-                    logger.debug(f"Dataset '{name}': {df.shape}")
-            else:
-                if logger:
-                    logger.warning(f"Dataset '{name}' could not be loaded")
-
-        if logger:
-            logger.info(
-                f"Successfully loaded {len([d for d in datasets_info.values() if d is not None])} datasets"
-            )
-
-        return {
-            "merged": merged_df,
-            "interactions": interactions,
-            "clean_recipes": clean_recipes,
-            "raw_recipes": raw_recipes,
-            "raw_interactions": raw_interactions,
-        }
-    except Exception as e:
-        if logger:
-            logger.error(f"Error loading datasets: {str(e)}")
-        raise
+def load_dataset(name: str, downsample=True, max_rows=10000):
+    base = PROJECT_ROOT / "data"
+    mapping = {
+        "clean_recipes": base / "processed" / "recipes_cleaned.csv",
+        "interactions": base / "processed" / "interactions_cleaned.csv",
+        "merged": base / "processed" / "merged_cleaned.csv",
+        # raw uniquement si explicitement demandé
+        "raw_recipes": base / "raw" / "RAW_recipes.csv",
+        "raw_interactions": base / "raw" / "RAW_interactions.csv",
+    }
+    p = mapping.get(name)
+    if p is None:
+        return None
+    # Optimisations:
+    if name == "clean_recipes":
+        df = _read_csv_opt(p, dtypes=DTYPES_RECIPES)
+    elif name == "interactions":
+        df = _read_csv_opt(p, dtypes=DTYPES_INTERACTIONS)
+    elif name == "merged":
+        df = _read_csv_opt(p)
+    else:
+        # Raw: limiter (échantillon) pour éviter OOM
+        df = _read_csv_opt(p, nrows=150000)  # coupe drastique
+    if df is not None and downsample and len(df) > max_rows and name != "merged":
+        df = df.sample(max_rows, random_state=42)
+    if logger and isinstance(df, pd.DataFrame):
+        logger.debug(f"load_dataset {name}: {df.shape}")
+    return df
 
 
 # --- Chargement commentaires externes (YAML) ---
@@ -180,7 +187,13 @@ def get_ds(downsample=True, max_rows=10000):
     """Retourne les 5 datasets (clean, interactions, merged, raw) avec option de downsample."""
     # Charge tout une fois
     if "ds" not in st.session_state:
-        st.session_state["ds"] = load_all_datasets()
+        st.session_state["ds"] = {
+            "clean_recipes": load_dataset("clean_recipes", downsample=False),
+            "interactions": load_dataset("interactions", downsample=False),
+            "merged": load_dataset("merged", downsample=False),
+            "raw_recipes": load_dataset("raw_recipes", downsample=False),
+            "raw_interactions": load_dataset("raw_interactions", downsample=False),
+        }
 
     ds = st.session_state["ds"].copy()
 
